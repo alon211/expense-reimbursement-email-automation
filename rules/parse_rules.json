@@ -1,10 +1,10 @@
 {
-  "parse_time_range_days": 5,
+  "parse_time_range_days":20,
   "rules": [
     {
       "rule_id": "rule_001",
       "rule_name": "报销邮件提取",
-      "enabled": true,
+      "enabled": false,
       "description": "提取包含报销、费用、发票关键词的邮件",
       "match_conditions": {
         "sender_contains": ["finance", "报销", "财务"],
@@ -24,21 +24,21 @@
       "enabled": true,
       "description": "提取指定地址邮件",
       "match_conditions": {
-        "sender_contains": ["12306@rails.com"],
+        "sender_contains": ["12306","didifapiao","reservation"],
         "subject_contains": [],
         "body_contains": []
       },
       "extract_options": {
         "extract_attachments": true,
-        "extract_body": true,
+        "extract_body": false,
         "extract_headers": false
       },
-      "output_subdir": "contracts"
+      "output_subdir": "12306"
     },
     {
       "rule_id": "rule_003",
       "rule_name": "发票邮件提取",
-      "enabled": true,
+      "enabled": false,
       "description": "提取所有发票相关邮件",
       "match_conditions": {
         "sender_contains": ["invoice", "发票", "财务"],

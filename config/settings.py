@@ -79,6 +79,7 @@ PUSH_SWITCH = os.getenv("PUSH_SWITCH", "True").lower() == "true"
 # 解析 & 存储配置
 PARSE_RULES_JSON_PATH = os.getenv("PARSE_RULES_JSON_PATH", "./rules/parse_rules.json")
 EXTRACT_ROOT_DIR = os.getenv("EXTRACT_ROOT_DIR", "./extracts")
+CLEAR_DB_ON_STARTUP = os.getenv("CLEAR_DB_ON_STARTUP", "False").lower() == "true"
 
 # 执行配置校验
 validate_config()

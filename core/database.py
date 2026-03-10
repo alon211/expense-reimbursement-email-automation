@@ -115,6 +115,40 @@ class DatabaseManager:
             )
             return cursor.fetchone() is not None
 
+    def is_email_extracted_with_files(self, message_id: str) -> tuple:
+        """
+        检查邮件是否已提取且文件存在（增强版去重）
+
+        Args:
+            message_id: 邮件的 Message-ID
+
+        Returns:
+            tuple: (是否已提取, 数据库记录存在, 提取内容文件存在, 邮件HTML文件存在)
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT storage_path, body_file_path FROM extracted_emails WHERE message_id = ?",
+                (message_id,)
+            )
+            row = cursor.fetchone()
+
+            # 数据库中无记录
+            if row is None:
+                return (False, False, False, False)
+
+            # 数据库有记录，检查文件是否存在
+            storage_path = row['storage_path']
+            body_file_path = row['body_file_path']
+
+            storage_exists = storage_path and Path(storage_path).exists()
+            body_exists = body_file_path and Path(body_file_path).exists()
+
+            # 任意一个关键文件存在就认为已提取
+            files_exist = storage_exists or body_exists
+
+            return (files_exist, True, storage_exists, body_exists)
+
     def add_extracted_email(self, email_record: ExtractedEmail) -> int:
         """
         添加已提取邮件记录
@@ -142,6 +176,38 @@ class DatabaseManager:
                 email_record.body_file_path
             ))
             return cursor.lastrowid
+
+    def update_extracted_email(self, email_record: ExtractedEmail) -> bool:
+        """
+        更新已提取邮件记录（用于重新提取文件时更新路径）
+
+        Args:
+            email_record: 邮件记录对象
+
+        Returns:
+            bool: 是否更新成功
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE extracted_emails
+                SET subject = ?, sender = ?, rule_id = ?, extracted_at = ?,
+                    storage_path = ?, attachment_count = ?, body_file_path = ?
+                WHERE message_id = ?
+            """, (
+                email_record.subject,
+                email_record.sender,
+                email_record.rule_id,
+                email_record.extracted_at or datetime.now(),
+                email_record.storage_path,
+                email_record.attachment_count,
+                email_record.body_file_path,
+                email_record.message_id
+            ))
+            updated = cursor.rowcount > 0
+            if updated:
+                logger.info(f"【数据库】更新邮件记录：message_id={email_record.message_id}")
+            return updated
 
     def get_extracted_email(self, message_id: str) -> Optional[ExtractedEmail]:
         """
@@ -337,3 +403,35 @@ class DatabaseManager:
                 logger.info(f"已清理 {deleted_count} 条 {days} 天前的记录")
 
             return deleted_count
+
+    def clear_all_data(self) -> dict:
+        """
+        清空所有数据（邮件记录和历史记录）
+
+        Returns:
+            dict: 清理统计信息
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 获取清理前的统计
+            cursor.execute("SELECT COUNT(*) as count FROM extracted_emails")
+            emails_count = cursor.fetchone()['count']
+
+            cursor.execute("SELECT COUNT(*) as count FROM extraction_history")
+            history_count = cursor.fetchone()['count']
+
+            # 清空表
+            cursor.execute("DELETE FROM extracted_emails")
+            cursor.execute("DELETE FROM extraction_history")
+
+            # 重置自增ID序列
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='extracted_emails'")
+            cursor.execute("DELETE FROM sqlite_sequence WHERE name='extraction_history'")
+
+            logger.warning(f"已清空所有数据：{emails_count} 条邮件记录，{history_count} 条历史记录")
+
+            return {
+                'emails_deleted': emails_count,
+                'history_deleted': history_count
+            }
