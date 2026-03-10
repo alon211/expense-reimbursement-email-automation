@@ -1,0 +1,56 @@
+{
+  "parse_time_range_days": 5,
+  "rules": [
+    {
+      "rule_id": "rule_001",
+      "rule_name": "报销邮件提取",
+      "enabled": true,
+      "description": "提取包含报销、费用、发票关键词的邮件",
+      "match_conditions": {
+        "sender_contains": ["finance", "报销", "财务"],
+        "subject_contains": ["报销", "费用", "发票"],
+        "body_contains": ["发票", "报销单", "费用清单"]
+      },
+      "extract_options": {
+        "extract_attachments": true,
+        "extract_body": true,
+        "extract_headers": true
+      },
+      "output_subdir": "reimbursement"
+    },
+    {
+      "rule_id": "rule_002",
+      "rule_name": "12306提取",
+      "enabled": true,
+      "description": "提取指定地址邮件",
+      "match_conditions": {
+        "sender_contains": ["12306@rails.com"],
+        "subject_contains": [],
+        "body_contains": []
+      },
+      "extract_options": {
+        "extract_attachments": true,
+        "extract_body": true,
+        "extract_headers": false
+      },
+      "output_subdir": "contracts"
+    },
+    {
+      "rule_id": "rule_003",
+      "rule_name": "发票邮件提取",
+      "enabled": true,
+      "description": "提取所有发票相关邮件",
+      "match_conditions": {
+        "sender_contains": ["invoice", "发票", "财务"],
+        "subject_contains": ["发票", "Invoice", "增值税"],
+        "body_contains": []
+      },
+      "extract_options": {
+        "extract_attachments": true,
+        "extract_body": false,
+        "extract_headers": true
+      },
+      "output_subdir": "invoices"
+    }
+  ]
+}

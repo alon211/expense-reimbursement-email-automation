@@ -1,0 +1,339 @@
+# -*- coding: utf-8 -*-
+"""数据库管理模块
+
+提供邮件去重和存储位置记录功能。
+"""
+import sqlite3
+import logging
+from pathlib import Path
+from typing import Optional, List
+from datetime import datetime
+from contextlib import contextmanager
+
+from core.models import ExtractedEmail, ExtractionHistory
+
+logger = logging.getLogger("Database")
+
+
+class DatabaseManager:
+    """数据库管理器"""
+
+    def __init__(self, db_path: str):
+        """
+        初始化数据库管理器
+
+        Args:
+            db_path: 数据库文件路径
+        """
+        self.db_path = Path(db_path)
+        self._init_database()
+
+    @contextmanager
+    def _get_connection(self):
+        """获取数据库连接（上下文管理器）"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row  # 支持字典式访问
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"数据库操作失败，已回滚：{e}")
+            raise
+        finally:
+            conn.close()
+
+    def _init_database(self):
+        """初始化数据库表结构"""
+        # 确保数据库目录存在
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 创建已提取邮件记录表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS extracted_emails (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_id TEXT UNIQUE NOT NULL,
+                    subject TEXT,
+                    sender TEXT,
+                    rule_id TEXT,
+                    extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    storage_path TEXT,
+                    attachment_count INTEGER DEFAULT 0,
+                    body_file_path TEXT
+                )
+            """)
+
+            # 创建提取历史表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS extraction_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    message_id TEXT,
+                    rule_id TEXT,
+                    action TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # 创建索引以提高查询性能
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_message_id
+                ON extracted_emails(message_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_rule_id
+                ON extracted_emails(rule_id)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_extracted_at
+                ON extracted_emails(extracted_at)
+            """)
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_history_message_id
+                ON extraction_history(message_id)
+            """)
+
+            logger.info(f"数据库初始化完成：{self.db_path}")
+
+    def is_email_extracted(self, message_id: str) -> bool:
+        """
+        检查邮件是否已提取
+
+        Args:
+            message_id: 邮件的 Message-ID
+
+        Returns:
+            bool: 是否已提取
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM extracted_emails WHERE message_id = ? LIMIT 1",
+                (message_id,)
+            )
+            return cursor.fetchone() is not None
+
+    def add_extracted_email(self, email_record: ExtractedEmail) -> int:
+        """
+        添加已提取邮件记录
+
+        Args:
+            email_record: 邮件记录对象
+
+        Returns:
+            int: 插入记录的 ID
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO extracted_emails
+                (message_id, subject, sender, rule_id, extracted_at, storage_path, attachment_count, body_file_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                email_record.message_id,
+                email_record.subject,
+                email_record.sender,
+                email_record.rule_id,
+                email_record.extracted_at or datetime.now(),
+                email_record.storage_path,
+                email_record.attachment_count,
+                email_record.body_file_path
+            ))
+            return cursor.lastrowid
+
+    def get_extracted_email(self, message_id: str) -> Optional[ExtractedEmail]:
+        """
+        根据 Message-ID 获取已提取邮件记录
+
+        Args:
+            message_id: 邮件的 Message-ID
+
+        Returns:
+            ExtractedEmail|None: 邮件记录对象
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM extracted_emails WHERE message_id = ?",
+                (message_id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return ExtractedEmail(
+                    id=row['id'],
+                    message_id=row['message_id'],
+                    subject=row['subject'],
+                    sender=row['sender'],
+                    rule_id=row['rule_id'],
+                    extracted_at=datetime.fromisoformat(row['extracted_at']) if row['extracted_at'] else None,
+                    storage_path=row['storage_path'],
+                    attachment_count=row['attachment_count'],
+                    body_file_path=row['body_file_path']
+                )
+            return None
+
+    def get_all_extracted_emails(self, limit: int = 100, offset: int = 0) -> List[ExtractedEmail]:
+        """
+        获取所有已提取邮件记录
+
+        Args:
+            limit: 返回数量限制
+            offset: 偏移量
+
+        Returns:
+            List[ExtractedEmail]: 邮件记录列表
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM extracted_emails ORDER BY extracted_at DESC LIMIT ? OFFSET ?",
+                (limit, offset)
+            )
+            rows = cursor.fetchall()
+            return [
+                ExtractedEmail(
+                    id=row['id'],
+                    message_id=row['message_id'],
+                    subject=row['subject'],
+                    sender=row['sender'],
+                    rule_id=row['rule_id'],
+                    extracted_at=datetime.fromisoformat(row['extracted_at']) if row['extracted_at'] else None,
+                    storage_path=row['storage_path'],
+                    attachment_count=row['attachment_count'],
+                    body_file_path=row['body_file_path']
+                )
+                for row in rows
+            ]
+
+    def add_extraction_history(self, history: ExtractionHistory) -> int:
+        """
+        添加提取历史记录
+
+        Args:
+            history: 历史记录对象
+
+        Returns:
+            int: 插入记录的 ID
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO extraction_history
+                (message_id, rule_id, action, created_at)
+                VALUES (?, ?, ?, ?)
+            """, (
+                history.message_id,
+                history.rule_id,
+                history.action,
+                history.created_at or datetime.now()
+            ))
+            return cursor.lastrowid
+
+    def get_extraction_history(self, message_id: str) -> List[ExtractionHistory]:
+        """
+        获取指定邮件的提取历史
+
+        Args:
+            message_id: 邮件的 Message-ID
+
+        Returns:
+            List[ExtractionHistory]: 历史记录列表
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM extraction_history WHERE message_id = ? ORDER BY created_at DESC",
+                (message_id,)
+            )
+            rows = cursor.fetchall()
+            return [
+                ExtractionHistory(
+                    id=row['id'],
+                    message_id=row['message_id'],
+                    rule_id=row['rule_id'],
+                    action=row['action'],
+                    created_at=datetime.fromisoformat(row['created_at']) if row['created_at'] else None
+                )
+                for row in rows
+            ]
+
+    def get_statistics(self) -> dict:
+        """
+        获取数据库统计信息
+
+        Returns:
+            dict: 统计信息字典
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 总提取邮件数
+            cursor.execute("SELECT COUNT(*) as count FROM extracted_emails")
+            total_emails = cursor.fetchone()['count']
+
+            # 按规则统计
+            cursor.execute("""
+                SELECT rule_id, COUNT(*) as count
+                FROM extracted_emails
+                GROUP BY rule_id
+            """)
+            by_rule = {row['rule_id']: row['count'] for row in cursor.fetchall()}
+
+            # 历史记录数
+            cursor.execute("SELECT COUNT(*) as count FROM extraction_history")
+            total_history = cursor.fetchone()['count']
+
+            return {
+                'total_emails': total_emails,
+                'by_rule': by_rule,
+                'total_history': total_history
+            }
+
+    def delete_email_record(self, message_id: str) -> bool:
+        """
+        删除指定邮件的提取记录
+
+        Args:
+            message_id: 邮件的 Message-ID
+
+        Returns:
+            bool: 是否删除成功
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM extracted_emails WHERE message_id = ?",
+                (message_id,)
+            )
+            deleted = cursor.rowcount > 0
+            if deleted:
+                logger.info(f"已删除邮件记录：{message_id}")
+            return deleted
+
+    def clear_old_records(self, days: int = 30) -> int:
+        """
+        清理指定天数之前的记录
+
+        Args:
+            days: 天数
+
+        Returns:
+            int: 删除的记录数
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cutoff_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            cutoff_date = cutoff_date.replace(day=cutoff_date.day - days)
+
+            cursor.execute(
+                "DELETE FROM extracted_emails WHERE extracted_at < ?",
+                (cutoff_date,)
+            )
+            deleted_count = cursor.rowcount
+
+            if deleted_count > 0:
+                logger.info(f"已清理 {deleted_count} 条 {days} 天前的记录")
+
+            return deleted_count
