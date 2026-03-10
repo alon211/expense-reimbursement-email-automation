@@ -238,23 +238,26 @@ class DatabaseManager:
             )
             row = cursor.fetchone()
             if row:
+                # 将 sqlite3.Row 转换为字典以支持 .get() 方法
+                row_dict = dict(row)
                 return ExtractedEmail(
-                    id=row['id'],
-                    message_id=row['message_id'],
-                    subject=row['subject'],
-                    sender=row['sender'],
-                    rule_id=row['rule_id'],
-                    mail_date=row.get('mail_date', ''),
-                    extracted_at=datetime.fromisoformat(row['extracted_at']) if row['extracted_at'] else None,
-                    storage_path=row['storage_path'],
-                    attachment_count=row['attachment_count'],
-                    body_file_path=row['body_file_path']
+                    id=row_dict['id'],
+                    message_id=row_dict['message_id'],
+                    subject=row_dict['subject'],
+                    sender=row_dict['sender'],
+                    rule_id=row_dict['rule_id'],
+                    mail_date=row_dict.get('mail_date', ''),
+                    extracted_at=datetime.fromisoformat(row_dict['extracted_at']) if row_dict.get('extracted_at') else None,
+                    storage_path=row_dict['storage_path'],
+                    attachment_count=row_dict['attachment_count'],
+                    body_file_path=row_dict['body_file_path']
                 )
             return None
 
     def get_existing_mail_dates(self) -> set:
         """
         获取所有已提取且文件存在的邮件发送时间集合
+        自动清理文件不存在的记录（将文件路径设为空）
 
         Returns:
             set: 邮件发送时间的集合（用于快速去重检查）
@@ -263,7 +266,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             # 查询所有有 storage_path 或 body_file_path 的记录
             cursor.execute("""
-                SELECT mail_date, storage_path, body_file_path
+                SELECT id, message_id, mail_date, storage_path, body_file_path
                 FROM extracted_emails
                 WHERE mail_date IS NOT NULL AND mail_date != ''
                 AND (storage_path IS NOT NULL AND storage_path != ''
@@ -271,17 +274,39 @@ class DatabaseManager:
             """)
 
             existing_dates = set()
+            records_to_clear = []  # 需要清理的记录（文件不存在）
+
             for row in cursor.fetchall():
                 # 验证文件是否真实存在
                 storage_path = row['storage_path']
                 body_file_path = row['body_file_path']
+                record_id = row['id']
+                message_id = row['message_id']
 
-                # 任意一个文件存在就认为邮件已提取
-                if (storage_path and Path(storage_path).exists()) or \
-                   (body_file_path and Path(body_file_path).exists()):
+                storage_exists = storage_path and Path(storage_path).exists()
+                body_exists = body_file_path and Path(body_file_path).exists()
+
+                if storage_exists or body_exists:
+                    # 文件存在，添加到已提取集合
                     existing_dates.add(row['mail_date'])
+                else:
+                    # 文件不存在，记录需要清理
+                    records_to_clear.append((record_id, message_id, storage_path, body_file_path))
+
+            # 清理文件不存在的记录（将文件路径设为空，保留数据库记录）
+            if records_to_clear:
+                logger.warning(f"【数据库清理】发现 {len(records_to_clear)} 条记录的文件不存在，将清理文件路径")
+                for record_id, message_id, storage_path, body_file_path in records_to_clear:
+                    cursor.execute("""
+                        UPDATE extracted_emails
+                        SET storage_path = '', body_file_path = '', attachment_count = 0
+                        WHERE id = ?
+                    """, (record_id,))
+                    logger.info(f"【数据库清理】已清理记录 ID={record_id}, message_id={message_id} 的文件路径（原路径：storage={storage_path}, body={body_file_path}）")
 
             logger.info(f"【数据库预检查】找到 {len(existing_dates)} 个已提取且文件存在的邮件")
+            if records_to_clear:
+                logger.info(f"【数据库清理】已清理 {len(records_to_clear)} 条文件不存在的记录")
             return existing_dates
 
     def get_all_extracted_emails(self, limit: int = 100, offset: int = 0) -> List[ExtractedEmail]:
@@ -309,7 +334,7 @@ class DatabaseManager:
                     subject=row['subject'],
                     sender=row['sender'],
                     rule_id=row['rule_id'],
-                    mail_date=row.get('mail_date', ''),
+                    mail_date=dict(row).get('mail_date', ''),
                     extracted_at=datetime.fromisoformat(row['extracted_at']) if row['extracted_at'] else None,
                     storage_path=row['storage_path'],
                     attachment_count=row['attachment_count'],
