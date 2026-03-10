@@ -262,10 +262,11 @@ class EmailExtractor:
 def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_dir: Path) -> dict:
     """
     完整提取一封邮件（正文、附件、提取内容）
+    根据规则的 extract_options 决定提取哪些内容
 
     Args:
         msg: 邮件对象
-        mail_data: 邮件数据（包含主题、发件人等）
+        mail_data: 邮件数据（包含主题、发件人、matched_rules等）
         extraction_dir: 提取目录
 
     Returns:
@@ -278,22 +279,51 @@ def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_d
     """
     extractor = EmailExtractor()
     message_id = mail_data.get('message_id', '')
-    primary_rule_id = mail_data.get('matched_rules', [None])[0]
+    primary_rule = mail_data.get('matched_rules', [None])[0]
 
-    if primary_rule_id:
-        primary_rule_id = primary_rule_id.rule_id
+    if primary_rule:
+        primary_rule_id = primary_rule.rule_id
+        logger.info(f"【提取器】使用规则：{primary_rule.rule_name} (ID: {primary_rule_id})")
     else:
         primary_rule_id = "unknown"
+        logger.warning("【提取器】未找到匹配规则，使用默认规则 ID")
+        # 创建一个默认规则对象（提取所有内容）
+        from core.rule_loader import Rule
+        primary_rule = Rule({
+            "rule_id": "unknown",
+            "rule_name": "默认规则",
+            "enabled": True,
+            "extract_options": {
+                "extract_attachments": True,
+                "extract_body": True,
+                "extract_headers": True
+            }
+        })
 
     logger.info(f"【提取器】开始提取邮件：{mail_data.get('subject', '')}")
+    logger.debug(f"【提取器】提取选项：extract_body={primary_rule.should_extract_body()}, extract_attachments={primary_rule.should_extract_attachments()}")
 
-    # 1. 保存邮件正文HTML
-    body_file_path = extractor.save_email_body(msg, primary_rule_id, extraction_dir, message_id)
+    # 根据规则的 extract_options 决定提取内容
+    body_file_path = ""
+    attachment_count = 0
+    attachment_paths = []
+    extracted_content_path = ""
 
-    # 2. 提取附件
-    attachment_count, attachment_paths = extractor.extract_attachments(msg, primary_rule_id, extraction_dir, message_id)
+    # 1. 保存邮件正文HTML（如果规则要求）
+    if primary_rule.should_extract_body():
+        logger.info("【提取器】根据规则配置，提取邮件正文")
+        body_file_path = extractor.save_email_body(msg, primary_rule_id, extraction_dir, message_id)
+    else:
+        logger.info("【提取器】规则配置不提取正文，跳过")
 
-    # 3. 保存提取的结构化内容
+    # 2. 提取附件（如果规则要求）
+    if primary_rule.should_extract_attachments():
+        logger.info("【提取器】根据规则配置，提取附件")
+        attachment_count, attachment_paths = extractor.extract_attachments(msg, primary_rule_id, extraction_dir, message_id)
+    else:
+        logger.info("【提取器】规则配置不提取附件，跳过")
+
+    # 3. 保存提取的结构化内容（始终保存，用于记录）
     extracted_content_path = extractor.save_extracted_content(mail_data, primary_rule_id, extraction_dir, message_id)
 
     result = {
