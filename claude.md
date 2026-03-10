@@ -3,6 +3,161 @@
 
 ---
 
+## 功能清单
+
+### 核心功能（已完成）
+
+- ✅ **环境依赖搭建**
+  - Python 虚拟环境配置
+  - requirements.txt 依赖管理
+  - 跨平台兼容性处理（Windows/Linux）
+
+- ✅ **配置管理模块**
+  - 环境变量读取（.env 文件）
+  - 配置校验（邮箱格式、必填项检查）
+  - 多环境配置支持（开发/生产）
+
+- ✅ **日志系统**
+  - 实时刷盘机制（行缓冲 + fsync）
+  - 多级别日志输出（DEBUG/INFO/WARNING/ERROR）
+  - 控制台 + 文件双输出
+  - 退出钩子确保日志完整性
+
+- ✅ **数据库管理**
+  - SQLite 数据库初始化
+  - 邮件记录表（extracted_emails）
+  - 提取历史表（extraction_history）
+  - 索引优化（message_id, rule_id, extracted_at）
+  - 数据库迁移（mail_date 字段自动添加）
+
+- ✅ **规则引擎**
+  - JSON 规则配置（rules/parse_rules.json）
+  - 规则加载和验证（RuleLoader）
+  - 多维度匹配（发件人、主题、正文）
+  - 规则启用/禁用开关
+  - 时间范围配置（parse_time_range_days）
+
+- ✅ **邮件拉取模块**
+  - IMAP 协议连接
+  - 邮件搜索（时间范围 + 状态筛选）
+  - 邮件头解码（多编码支持）
+  - 邮件正文提取（text/plain + text/html）
+  - 规则匹配引擎
+  - 已读标记
+
+- ✅ **邮件内容提取**
+  - 邮件正文 HTML 保存
+  - 附件提取和解码
+  - 结构化数据导出（JSON）
+  - 按规则分类存储
+  - 文件名安全处理（MD5 哈希）
+  - 目录组织（bodies/attachments/extracted）
+
+- ✅ **智能去重机制**
+  - 基于邮件发送时间（mail_date）的唯一标识
+  - 预检查去重（get_existing_mail_dates）
+  - 文件存在性验证
+  - 数据库记录 + 文件双重验证
+  - 智能更新（记录存在则更新，不存在则插入）
+  - 三层防护机制
+
+- ✅ **钉钉通知推送**
+  - Webhook 消息发送
+  - 签名验证（HMAC-SHA256）
+  - 推送开关控制
+  - 汇总通知（多邮件合并）
+  - 异常错误通知
+
+- ✅ **主程序循环**
+  - 定时任务调度（CHECK_INTERVAL）
+  - 时区支持（pytz）
+  - 全局异常捕获
+  - 优雅退出（KeyboardInterrupt 处理）
+  - 数据库清空配置（CLEAR_DB_ON_STARTUP）
+
+- ✅ **工具函数模块**
+  - 邮件头解码（utils/header_decoder.py）
+  - 文件操作工具（utils/file_utils.py）
+  - 路径规范化（Windows/Linux 兼容）
+  - 文件存在性检查
+
+- ✅ **Docker 容器化**
+  - Dockerfile 镜像构建
+  - docker-compose.yml 编排配置
+  - 环境变量注入
+  - 数据持久化挂载
+
+- ✅ **测试脚本**
+  - 数据库测试（test_database.py）
+  - 规则测试（test_rules.py）
+  - 集成测试（test_db_main_integration.py）
+  - 去重测试（test_enhanced_dedup.py, test_mail_date_dedup.py）
+  - 调试工具（debug_db_paths.py, debug_mail_matching.py）
+
+### 文档功能（已完成）
+
+- ✅ **项目架构文档**（CLAUDE.md）
+  - 目录结构说明
+  - 数据模型定义
+  - 函数功能清单
+  - 调用关系图
+  - 去重机制详解
+  - 环境变量配置
+  - Git 提交历史
+  - 故障排查指南
+
+- ✅ **实现文档**（docs/）
+  - TODO3_IMPLEMENTATION.md（文件提取实现）
+  - TODO3_VERIFICATION.md（功能验证）
+  - MAIN_DB_INTEGRATION.md（数据库集成）
+  - CLEAR_DB_CONFIG.md（清库配置）
+  - DATABASE_STATUS.md（数据库状态）
+
+### 待扩展功能（未实现）
+
+- ❌ **README.md 项目说明**
+  - 项目介绍和使用指南
+  - 快速开始教程
+  - 常见问题解答
+
+- ❌ **单元测试覆盖**
+  - pytest 测试框架
+  - Mock 外部依赖（IMAP、钉钉 API）
+  - 测试覆盖率报告（>80%）
+
+- ❌ **企业微信推送**
+  - 企业微信机器人集成
+  - 多渠道推送支持（钉钉 + 企业微信）
+
+- ❌ **Exchange 协议支持**
+  - Microsoft Exchange 邮箱支持
+  - EWS API 集成
+
+- ❌ **Web UI 管理界面**
+  - Flask/FastAPI 后端
+  - Vue.js 前端界面
+  - 规则在线编辑
+  - 邮件记录查看
+  - 统计报表展示
+
+- ❌ **邮件附件预览**
+  - PDF 在线预览
+  - 图片预览
+  - Office 文档预览
+
+- ❌ **定时任务优化**
+  - Cron 表达式支持
+  - 任务调度可视化
+  - 任务执行历史
+
+- ❌ **监控告警**
+  - 服务健康检查
+  - 错误率监控
+  - 性能指标采集
+  - 告警规则配置
+
+---
+
 # 报销邮件自动化服务 - 项目架构文档
 
 ## 项目概述
