@@ -105,6 +105,7 @@ def main():
                     message_id = mail_data['message_id']
                     subject = mail_data['subject']
                     sender = mail_data['sender']
+                    mail_date = mail_data.get('date', '')  # 获取邮件发送时间（唯一ID）
                     matched_rules = mail_data.get('matched_rules', [])
 
                     # 获取主规则ID（使用第一个匹配的规则）
@@ -124,6 +125,7 @@ def main():
                             subject=subject,
                             sender=sender,
                             rule_id=primary_rule_id,
+                            mail_date=mail_date,  # 邮件发送时间（用于唯一标识和去重）
                             extracted_at=datetime.now(),
                             storage_path=storage_path,  # ✅ TODO 3 已实现
                             attachment_count=attachment_count,  # ✅ TODO 3 已实现

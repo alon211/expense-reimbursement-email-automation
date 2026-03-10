@@ -16,6 +16,7 @@ class ExtractedEmail:
     subject: str = ""
     sender: str = ""
     rule_id: str = ""
+    mail_date: str = ""  # 邮件发送时间（用于唯一标识和去重）
     extracted_at: Optional[datetime] = None
     storage_path: str = ""
     attachment_count: int = 0
@@ -29,6 +30,7 @@ class ExtractedEmail:
             'subject': self.subject,
             'sender': self.sender,
             'rule_id': self.rule_id,
+            'mail_date': self.mail_date,
             'extracted_at': self.extracted_at.isoformat() if self.extracted_at else None,
             'storage_path': self.storage_path,
             'attachment_count': self.attachment_count,

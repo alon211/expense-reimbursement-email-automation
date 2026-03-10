@@ -1,3 +1,5 @@
+## 强制约束
+用户对话里含有该功能ok的意思，就需要自动git commit下
 ## 项目架构
 email-reimbursement-fetcher/
 ├── .env.example                          # 环境变量示例文件（提交到Git）

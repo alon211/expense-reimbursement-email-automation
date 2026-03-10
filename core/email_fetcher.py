@@ -112,7 +112,7 @@ def fetch_reimbursement_mails(logger_instance: logging.Logger = None, db_manager
     """
     log = logger_instance or logger
     mail_conn = None
-    extraction_dir = None  # 提取目录
+    extraction_dir = None  # 提取目录（延迟创建）
 
     try:
         # 初始化规则加载器
@@ -120,10 +120,11 @@ def fetch_reimbursement_mails(logger_instance: logging.Logger = None, db_manager
         rule_loader = RuleLoader(PARSE_RULES_JSON_PATH)
         log.info(f"【业务日志】成功加载 {len(rule_loader.get_enabled_rules())} 条解析规则，时间范围：{rule_loader.parse_time_range_days} 天")
 
-        # 创建提取目录（TODO 3）
-        extractor = EmailExtractor()
-        extraction_dir = extractor.create_extraction_dir()
-        log.info(f"【业务日志】创建提取目录：{extraction_dir}")
+        # 预检查：获取所有已提取且文件存在的邮件发送时间集合
+        existing_mail_dates = set()
+        if db_manager:
+            existing_mail_dates = db_manager.get_existing_mail_dates()
+            log.info(f"【预检查】已加载 {len(existing_mail_dates)} 个已提取邮件的发送时间")
 
         log.debug(f"【调试日志】开始连接IMAP服务器：{IMAP_HOST}")
         mail_conn = imaplib.IMAP4_SSL(IMAP_HOST)
@@ -157,15 +158,20 @@ def fetch_reimbursement_mails(logger_instance: logging.Logger = None, db_manager
 
             matched_mail = parse_reimbursement_mail(msg, rule_loader, log)
             if matched_mail:
-                # 检查是否已提取且文件存在（增强版去重）
-                if db_manager:
-                    is_extracted, db_exists, storage_exists, body_exists = db_manager.is_email_extracted_with_files(matched_mail['message_id'])
-                    if is_extracted:
-                        log.info(f"【业务日志】邮件已提取且文件存在，跳过：{matched_mail['subject']}（数据库记录={db_exists}, 提取内容文件={storage_exists}, 邮件HTML={body_exists}）")
-                        skipped_count += 1
-                        continue
-                    elif db_exists and not is_extracted:
-                        log.warning(f"【业务日志】邮件有数据库记录但文件不存在，将重新提取：{matched_mail['subject']}")
+                # 获取邮件发送时间（用于去重）
+                mail_date = matched_mail.get('date', '')
+
+                # 检查邮件是否已提取（基于 mail_date 预检查）
+                if mail_date in existing_mail_dates:
+                    log.info(f"【业务日志】邮件已提取（基于发送时间匹配），跳过：{matched_mail['subject']}（发送时间={mail_date}）")
+                    skipped_count += 1
+                    continue
+
+                # 第一封需要提取的邮件时，创建提取目录
+                if not extraction_dir:
+                    extractor = EmailExtractor()
+                    extraction_dir = extractor.create_extraction_dir()
+                    log.info(f"【业务日志】创建提取目录：{extraction_dir}")
 
                 # TODO 3: 提取邮件内容（正文、附件）
                 log.info(f"【提取器】开始提取邮件内容：{matched_mail['subject']}")
@@ -179,6 +185,11 @@ def fetch_reimbursement_mails(logger_instance: logging.Logger = None, db_manager
                 # 标记为已读
                 mail_conn.store(num, '+FLAGS', '\\Seen')
                 log.debug(f"【调试日志】邮件{num}已标记为已读")
+
+        # 如果没有需要提取的邮件
+        if not matched_mails and skipped_count > 0:
+            log.info(f"【业务日志】所有邮件都已提取，无需重复提取（跳过 {skipped_count} 封）")
+            return []
 
         # 记录统计信息
         total_matched = len(matched_mails)

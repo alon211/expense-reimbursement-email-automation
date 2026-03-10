@@ -59,12 +59,21 @@ class DatabaseManager:
                     subject TEXT,
                     sender TEXT,
                     rule_id TEXT,
+                    mail_date TEXT,
                     extracted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     storage_path TEXT,
                     attachment_count INTEGER DEFAULT 0,
                     body_file_path TEXT
                 )
             """)
+
+            # 检查并添加 mail_date 字段（数据库迁移）
+            cursor.execute("PRAGMA table_info(extracted_emails)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'mail_date' not in columns:
+                logger.info("【数据库迁移】添加 mail_date 字段...")
+                cursor.execute("ALTER TABLE extracted_emails ADD COLUMN mail_date TEXT")
+                logger.info("【数据库迁移】mail_date 字段添加成功")
 
             # 创建提取历史表
             cursor.execute("""
@@ -163,13 +172,14 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO extracted_emails
-                (message_id, subject, sender, rule_id, extracted_at, storage_path, attachment_count, body_file_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (message_id, subject, sender, rule_id, mail_date, extracted_at, storage_path, attachment_count, body_file_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 email_record.message_id,
                 email_record.subject,
                 email_record.sender,
                 email_record.rule_id,
+                email_record.mail_date,
                 email_record.extracted_at or datetime.now(),
                 email_record.storage_path,
                 email_record.attachment_count,
@@ -191,13 +201,14 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE extracted_emails
-                SET subject = ?, sender = ?, rule_id = ?, extracted_at = ?,
+                SET subject = ?, sender = ?, rule_id = ?, mail_date = ?, extracted_at = ?,
                     storage_path = ?, attachment_count = ?, body_file_path = ?
                 WHERE message_id = ?
             """, (
                 email_record.subject,
                 email_record.sender,
                 email_record.rule_id,
+                email_record.mail_date,
                 email_record.extracted_at or datetime.now(),
                 email_record.storage_path,
                 email_record.attachment_count,
@@ -233,12 +244,45 @@ class DatabaseManager:
                     subject=row['subject'],
                     sender=row['sender'],
                     rule_id=row['rule_id'],
+                    mail_date=row.get('mail_date', ''),
                     extracted_at=datetime.fromisoformat(row['extracted_at']) if row['extracted_at'] else None,
                     storage_path=row['storage_path'],
                     attachment_count=row['attachment_count'],
                     body_file_path=row['body_file_path']
                 )
             return None
+
+    def get_existing_mail_dates(self) -> set:
+        """
+        获取所有已提取且文件存在的邮件发送时间集合
+
+        Returns:
+            set: 邮件发送时间的集合（用于快速去重检查）
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            # 查询所有有 storage_path 或 body_file_path 的记录
+            cursor.execute("""
+                SELECT mail_date, storage_path, body_file_path
+                FROM extracted_emails
+                WHERE mail_date IS NOT NULL AND mail_date != ''
+                AND (storage_path IS NOT NULL AND storage_path != ''
+                     OR body_file_path IS NOT NULL AND body_file_path != '')
+            """)
+
+            existing_dates = set()
+            for row in cursor.fetchall():
+                # 验证文件是否真实存在
+                storage_path = row['storage_path']
+                body_file_path = row['body_file_path']
+
+                # 任意一个文件存在就认为邮件已提取
+                if (storage_path and Path(storage_path).exists()) or \
+                   (body_file_path and Path(body_file_path).exists()):
+                    existing_dates.add(row['mail_date'])
+
+            logger.info(f"【数据库预检查】找到 {len(existing_dates)} 个已提取且文件存在的邮件")
+            return existing_dates
 
     def get_all_extracted_emails(self, limit: int = 100, offset: int = 0) -> List[ExtractedEmail]:
         """
@@ -265,6 +309,7 @@ class DatabaseManager:
                     subject=row['subject'],
                     sender=row['sender'],
                     rule_id=row['rule_id'],
+                    mail_date=row.get('mail_date', ''),
                     extracted_at=datetime.fromisoformat(row['extracted_at']) if row['extracted_at'] else None,
                     storage_path=row['storage_path'],
                     attachment_count=row['attachment_count'],

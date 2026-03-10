@@ -36,8 +36,11 @@ class EmailExtractor:
         创建本次提取的存储目录
 
         Returns:
-            Path: 提取目录路径（格式：extracted_mails/2026-03-11_143020）
+            Path: 提取目录路径（格式：extracted_mails/YYYY-MM-DD_HHMMSS/）
+
+        注意：每次运行使用时间戳命名，但会通过预检查避免重复提取
         """
+        # 恢复时间戳命名（每次运行独立目录）
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         extraction_dir = self.root_dir / timestamp
         extraction_dir.mkdir(parents=True, exist_ok=True)
