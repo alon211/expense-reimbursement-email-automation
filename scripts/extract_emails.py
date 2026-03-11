@@ -30,9 +30,6 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(description='邮件提取脚本')
-    parser.add_argument('--rules-path', default=PARSE_RULES_JSON_PATH, help='规则配置文件路径')
-    parser.add_argument('--time-range-days', type=int, default=20, help='搜索时间范围（天）')
-    parser.add_argument('--output-format', default='json', choices=['json', 'text'], help='输出格式')
     parser.add_argument('--output-dir', default=None, help='输出目录（默认使用EXTRACT_ROOT_DIR）')
 
     args = parser.parse_args()
@@ -43,7 +40,7 @@ def main():
     else:
         output_dir = Path(EXTRACT_ROOT_DIR)
 
-    logger.info(f"📧 开始提取邮件（时间范围: {args.time_range_days}天）...")
+    logger.info(f"📧 开始提取邮件（使用 JSON 配置的时间范围）...")
     logger.info(f"📁 输出目录: {output_dir}")
 
     try:
@@ -65,7 +62,6 @@ def main():
         result = {
             "success": True,
             "executed_at": datetime.now().isoformat(),
-            "time_range_days": args.time_range_days,
             "output_dir": str(output_dir),
             "matched_count": len(matched_mails),
             "mails": [
@@ -74,8 +70,8 @@ def main():
                     "subject": m.get("subject"),
                     "sender": m.get("sender"),
                     "mail_date": m.get("date"),
-                    "rule_id": m.get("matched_rules", [{}])[0].get("rule_id") if m.get("matched_rules") else None,
-                    "rule_name": m.get("matched_rules", [{}])[0].get("rule_name") if m.get("matched_rules") else None
+                    "rule_id": m.get("matched_rules", [None])[0].rule_id if m.get("matched_rules") else None,
+                    "rule_name": m.get("matched_rules", [None])[0].rule_name if m.get("matched_rules") else None
                 }
                 for m in matched_mails
             ],

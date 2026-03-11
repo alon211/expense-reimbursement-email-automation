@@ -2,23 +2,6 @@ name: Email Extraction
 
 on:
   workflow_dispatch:
-    inputs:
-      time_range_days:
-        description: '搜索时间范围（天）'
-        required: false
-        default: '5'
-        type: choice
-        options:
-          - 1
-          - 3
-          - 7
-          - 20
-          - 30
-      rule_filter:
-        description: '规则ID过滤器（逗号分隔，留空表示全部）'
-        required: false
-        type: string
-
   repository_dispatch:
     types: [trigger-extraction]
 
@@ -73,11 +56,7 @@ jobs:
         run: |
           echo "✅ 配置加载完成"
           echo "IMAP_HOST: ${IMAP_HOST:0:8}..."
-          echo "时间范围: ${{ github.event.inputs.time_range_days || 20 }} 天"
-
-      - name: Verify GitHub Secrets
-        run: |
-          python scripts/github_action_adapter.py
+          echo "时间范围: 使用 JSON 配置文件中的设置"
 
       - name: Clean temporary directories
         run: |
@@ -94,7 +73,6 @@ jobs:
         id: extract
         run: |
           python scripts/extract_emails.py \
-            --time-range-days ${{ github.event.inputs.time_range_days || 20 }} \
             --output-dir /tmp/extraction_temp \
             2>&1 | tee /tmp/extraction_log.txt
 
