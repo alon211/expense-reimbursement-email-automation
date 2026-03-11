@@ -89,6 +89,18 @@ class Rule:
         """获取允许的压缩格式列表"""
         return self.extract_options.get("allowed_archive_types", [])
 
+    def should_extract_nuonuo_invoice(self) -> bool:
+        """是否提取诺诺网发票PDF"""
+        return self.extract_options.get("extract_nuonuo_invoice", False)
+
+    def get_nuonuo_anchor_text(self) -> str:
+        """获取诺诺网链接锚点文字"""
+        return self.extract_options.get("nuonuo_anchor_text", "点击链接查看发票：")
+
+    def get_nuonuo_download_options(self) -> dict:
+        """获取诺诺网下载选项"""
+        return self.extract_options.get("nuonuo_download_options", {})
+
 
 class RuleLoader:
     """规则加载器"""

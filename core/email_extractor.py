@@ -395,6 +395,106 @@ class EmailExtractor:
             logger.error(f"【提取器】解码文件名失败：{e}")
             return "attachment_unknown"
 
+    def extract_nuonuo_invoice_pdf(
+        self,
+        html_file_path: str,
+        rule: object,
+        extraction_dir: Path
+    ) -> dict:
+        """
+        从诺诺网发票邮件中提取并下载PDF
+
+        Args:
+            html_file_path: 邮件正文HTML文件路径
+            rule: 规则对象
+            extraction_dir: 提取根目录
+
+        Returns:
+            dict: {
+                'pdf_count': 下载成功的PDF数量,
+                'pdf_paths': PDF文件路径列表,
+                'failed_urls': 下载失败的URL列表
+            }
+        """
+        logger.info(f"【提取器】开始处理诺诺网发票：{html_file_path}")
+
+        # 检查规则是否启用诺诺网发票提取
+        if not rule.should_extract_nuonuo_invoice():
+            logger.info("【提取器】规则未启用诺诺网发票提取，跳过")
+            return {
+                'pdf_count': 0,
+                'pdf_paths': [],
+                'failed_urls': []
+            }
+
+        # 读取HTML文件
+        html_path = Path(html_file_path)
+        if not html_path.exists():
+            logger.error(f"【提取器】HTML文件不存在：{html_file_path}")
+            return {
+                'pdf_count': 0,
+                'pdf_paths': [],
+                'failed_urls': []
+            }
+
+        html_content = html_path.read_text(encoding='utf-8')
+
+        # 提取发票链接
+        from utils.nuonuo_invoice_parser import NuonuoInvoiceParser
+
+        parser = NuonuoInvoiceParser()
+        anchor_text = rule.get_nuonuo_anchor_text()
+        invoice_url = parser.extract_invoice_link(html_content, anchor_text)
+
+        if not invoice_url:
+            logger.warning(f"【提取器】未找到诺诺网发票链接（锚点文字：{anchor_text}）")
+            return {
+                'pdf_count': 0,
+                'pdf_paths': [],
+                'failed_urls': []
+            }
+
+        logger.info(f"【提取器】找到诺诺网发票链接：{invoice_url}")
+
+        # 创建PDF保存目录
+        rule_id = rule.rule_id
+        pdf_dir = extraction_dir / "nuonuo_invoices" / rule_id
+        pdf_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成文件名（使用时间戳和发票信息）
+        import hashlib
+        import datetime
+        url_hash = hashlib.md5(invoice_url.encode()).hexdigest()[:8]
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"invoice_{timestamp}_{url_hash}.pdf"
+
+        # 使用重命名机制避免冲突
+        unique_filename = self._get_unique_filename(pdf_dir, filename)
+        save_path = pdf_dir / unique_filename
+
+        # 下载PDF
+        download_options = rule.get_nuonuo_download_options()
+        success = parser.download_invoice_pdf(
+            invoice_url=invoice_url,
+            save_path=save_path,
+            timeout=download_options.get('timeout', 30)
+        )
+
+        if success:
+            logger.info(f"【提取器】✅ 诺诺网发票PDF下载成功")
+            return {
+                'pdf_count': 1,
+                'pdf_paths': [str(save_path)],
+                'failed_urls': []
+            }
+        else:
+            logger.error(f"【提取器】❌ 诺诺网发票PDF下载失败")
+            return {
+                'pdf_count': 0,
+                'pdf_paths': [],
+                'failed_urls': [invoice_url]
+            }
+
 
 def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_dir: Path) -> dict:
     """
@@ -451,11 +551,24 @@ def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_d
     attachment_count = 0
     attachment_paths = []
     extracted_content_path = ""
+    pdf_count = 0
+    pdf_paths = []
 
     # 1. 保存邮件正文HTML（如果规则要求）
     if primary_rule.should_extract_body():
         logger.info("【提取器】根据规则配置，提取邮件正文")
         body_file_path = extractor.save_email_body(msg, primary_rule_id, extraction_dir, message_id)
+
+        # 1.5 【新增】提取诺诺网发票PDF（如果规则要求）
+        if hasattr(primary_rule, 'should_extract_nuonuo_invoice') and primary_rule.should_extract_nuonuo_invoice():
+            logger.info("【提取器】根据规则配置，提取诺诺网发票PDF")
+            pdf_result = extractor.extract_nuonuo_invoice_pdf(
+                html_file_path=body_file_path,
+                rule=primary_rule,
+                extraction_dir=extraction_dir
+            )
+            pdf_count = pdf_result['pdf_count']
+            pdf_paths = pdf_result['pdf_paths']
     else:
         logger.info("【提取器】规则配置不提取正文，跳过")
 
@@ -487,9 +600,11 @@ def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_d
         'body_file_path': body_file_path,
         'attachment_count': attachment_count,
         'attachment_paths': attachment_paths,
-        'extracted_content_path': extracted_content_path
+        'extracted_content_path': extracted_content_path,
+        'pdf_count': pdf_count,
+        'pdf_paths': pdf_paths
     }
 
-    logger.info(f"【提取器】邮件提取完成：正文={bool(body_file_path)}, 附件={attachment_count}个, 提取内容={bool(extracted_content_path)}")
+    logger.info(f"【提取器】邮件提取完成：正文={bool(body_file_path)}, 附件={attachment_count}个, PDF={pdf_count}个, 提取内容={bool(extracted_content_path)}")
 
     return result

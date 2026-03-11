@@ -1,5 +1,5 @@
 {
-  "parse_time_range_days":20,
+  "parse_time_range_days":60,
   "rules": [
     {
       "rule_id": "rule_001",
@@ -21,11 +21,11 @@
     {
       "rule_id": "rule_002",
       "rule_name": "12306提取",
-      "enabled": true,
+      "enabled": false,
       "description": "提取指定地址邮件",
       "match_conditions": {
         "sender_contains": ["12306","didifapiao","reservation"],
-        "subject_contains": [],
+        "subject_contains": ["高德打车电子发票"],
         "body_contains": []
       },
       "extract_options": {
@@ -40,18 +40,25 @@
     },
     {
       "rule_id": "rule_003",
-      "rule_name": "发票邮件提取",
-      "enabled": false,
-      "description": "提取所有发票相关邮件",
+      "rule_name": "诺诺网发票提取",
+      "enabled": true,
+      "description": "从诺诺网发票邮件中自动提取并下载PDF",
       "match_conditions": {
-        "sender_contains": ["invoice", "发票", "财务"],
-        "subject_contains": ["发票", "Invoice", "增值税"],
+        "sender_contains": ["诺诺网"],
+        "subject_contains": ["发票"],
         "body_contains": []
       },
       "extract_options": {
-        "extract_attachments": true,
-        "extract_body": false,
-        "extract_headers": true
+        "extract_attachments": false,
+        "extract_body": true,
+        "extract_headers": false,
+        "extract_archives": false,
+        "extract_nuonuo_invoice": true,
+        "nuonuo_anchor_text": "点击链接查看发票：",
+        "nuonuo_download_options": {
+          "timeout": 30,
+          "verify_ssl": true
+        }
       },
       "output_subdir": "invoices"
     }
