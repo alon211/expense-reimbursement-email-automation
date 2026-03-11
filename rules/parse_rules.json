@@ -21,7 +21,7 @@
     {
       "rule_id": "rule_002",
       "rule_name": "12306提取",
-      "enabled": false,
+      "enabled": true,
       "description": "提取指定地址邮件",
       "match_conditions": {
         "sender_contains": ["12306","didifapiao","reservation"],

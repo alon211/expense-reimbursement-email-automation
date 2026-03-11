@@ -6,7 +6,7 @@ on:
       time_range_days:
         description: '搜索时间范围（天）'
         required: false
-        default: '3'
+        default: '5'
         type: choice
         options:
           - 1
