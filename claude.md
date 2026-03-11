@@ -20,7 +20,47 @@
 ---
 
 ## 强制约束
-自动git commit，需要用户确认后才可以
+
+### 1. Git 提交约束
+自动 git commit 需要用户确认后才可以执行。
+
+### 2. 依赖安装约束（强制）
+**当项目需要新增 Python 依赖时，必须按以下步骤执行**：
+
+1. **先更新 `requirements.txt`**
+   - 将依赖包及版本要求写入 `requirements.txt`
+   - 格式：`package_name>=version` 或 `package_name==version`
+   - 添加注释说明用途
+
+2. **在项目虚拟环境中安装**
+   - 必须使用当前目录的虚拟环境：`./venv/Scripts/pip`
+   - 禁止使用全局 pip 安装
+   - 安装命令：
+     ```bash
+     ./venv/Scripts/pip install -r requirements.txt
+     ```
+     或安装单个包：
+     ```bash
+     ./venv/Scripts/pip install package_name
+     ```
+
+3. **验证安装**
+   - 检查安装日志确认成功
+   - 在虚拟环境中测试导入模块
+
+**错误示例**（禁止）：
+```bash
+pip install package_name  # ❌ 使用了全局pip
+```
+
+**正确示例**（必须）：
+```bash
+# 1. 编辑 requirements.txt
+echo "package_name>=1.0.0  # 功能说明" >> requirements.txt
+
+# 2. 在虚拟环境安装
+./venv/Scripts/pip install package_name
+```
 
 ---
 

@@ -10,7 +10,7 @@ import hashlib
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger("NuonuoInvoiceParser")
+logger = logging.getLogger("ReimbursementMailFetcher")
 
 
 class NuonuoInvoiceParser:

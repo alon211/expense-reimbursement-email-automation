@@ -14,7 +14,7 @@ from email.header import decode_header
 from config.settings import EXTRACT_ROOT_DIR
 
 
-logger = logging.getLogger("EmailExtractor")
+logger = logging.getLogger("ReimbursementMailFetcher")
 
 
 class EmailExtractor:
@@ -469,8 +469,8 @@ class EmailExtractor:
         filename = f"invoice_{timestamp}_{url_hash}.pdf"
 
         # 使用重命名机制避免冲突
-        unique_filename = self._get_unique_filename(pdf_dir, filename)
-        save_path = pdf_dir / unique_filename
+        # _get_unique_filename 已返回完整路径，不要再次拼接 pdf_dir
+        save_path = self._get_unique_filename(pdf_dir, filename)
 
         # 下载PDF
         download_options = rule.get_nuonuo_download_options()
@@ -560,6 +560,12 @@ def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_d
         body_file_path = extractor.save_email_body(msg, primary_rule_id, extraction_dir, message_id)
 
         # 1.5 【新增】提取诺诺网发票PDF（如果规则要求）
+        logger.debug(f"【提取器-DEBUG】检查诺诺网发票提取配置...")
+        logger.debug(f"【提取器-DEBUG】hasattr检查: {hasattr(primary_rule, 'should_extract_nuonuo_invoice')}")
+        if hasattr(primary_rule, 'should_extract_nuonuo_invoice'):
+            should_extract = primary_rule.should_extract_nuonuo_invoice()
+            logger.debug(f"【提取器-DEBUG】should_extract_nuonuo_invoice返回: {should_extract}")
+
         if hasattr(primary_rule, 'should_extract_nuonuo_invoice') and primary_rule.should_extract_nuonuo_invoice():
             logger.info("【提取器】根据规则配置，提取诺诺网发票PDF")
             pdf_result = extractor.extract_nuonuo_invoice_pdf(
