@@ -4,7 +4,7 @@
     {
       "rule_id": "rule_001",
       "rule_name": "报销邮件提取",
-      "enabled": false,
+      "enabled": true,
       "description": "提取包含报销、费用、发票关键词的邮件",
       "match_conditions": {
         "sender_contains": ["finance", "报销", "财务"],
