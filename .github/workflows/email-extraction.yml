@@ -1,0 +1,179 @@
+name: Email Extraction
+
+on:
+  workflow_dispatch:
+    inputs:
+      time_range_days:
+        description: '搜索时间范围（天）'
+        required: false
+        default: '20'
+        type: choice
+        options:
+          - 7
+          - 20
+          - 30
+      rule_filter:
+        description: '规则ID过滤器（逗号分隔，留空表示全部）'
+        required: false
+        type: string
+
+  repository_dispatch:
+    types: [trigger-extraction]
+
+# 配置环境变量（从GitHub Secrets）
+env:
+  IMAP_HOST: ${{ secrets.IMAP_HOST }}
+  IMAP_USER: ${{ secrets.IMAP_USER }}
+  IMAP_PASS: ${{ secrets.IMAP_PASS }}
+  DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+  DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+  EXTRACT_ROOT_DIR: /tmp/extraction_temp
+
+jobs:
+  extract-emails:
+    runs-on: ubuntu-latest
+
+    # 定义输出（供API返回）
+    outputs:
+      summary: ${{ steps.generate-output.outputs.summary }}
+      detail: ${{ steps.generate-output.outputs.detail }}
+      status: ${{ steps.generate-output.outputs.status }}
+      executed_at: ${{ steps.generate-output.outputs.executed_at }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full unrar-free
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Load configuration
+        run: |
+          echo "✅ 配置加载完成"
+          echo "IMAP_HOST: ${IMAP_HOST:0:8}..."
+          echo "时间范围: ${{ github.event.inputs.time_range_days || 20 }} 天"
+
+      - name: Verify GitHub Secrets
+        run: |
+          python scripts/github_action_adapter.py
+
+      - name: Clean temporary directories
+        run: |
+          rm -rf /tmp/extraction_temp
+          mkdir -p /tmp/extraction_temp
+          echo "✅ 临时目录已清空"
+
+      - name: Check disk space (before)
+        run: |
+          echo "磁盘使用情况（执行前）："
+          df -h
+
+      - name: Execute email extraction
+        id: extract
+        run: |
+          python scripts/extract_emails.py \
+            --time-range-days ${{ github.event.inputs.time_range_days || 20 }} \
+            --output-dir /tmp/extraction_temp \
+            2>&1 | tee /tmp/extraction_log.txt
+
+      - name: Check disk space (after)
+        run: |
+          echo "磁盘使用情况（执行后）："
+          df -h
+          echo "临时目录大小："
+          du -sh /tmp/extraction_temp || echo "目录不存在"
+
+      - name: Generate outputs
+        id: generate-output
+        run: |
+          # 从日志中提取结果
+          RESULT=$(sed -n '/=== EXTRACTION_RESULT ===/,/=== EXTRACTION_RESULT_END ===/p' /tmp/extraction_log.txt | sed '1d;$d')
+
+          if [ -z "$RESULT" ]; then
+            echo "⚠️  未找到提取结果"
+            exit 1
+          fi
+
+          # 生成摘要
+          SUMMARY=$(echo "$RESULT" | jq '{
+            success,
+            matched_count,
+            executed_at,
+            time_range_days
+          }')
+
+          # 获取执行时间
+          EXECUTED_AT=$(echo "$RESULT" | jq -r '.executed_at')
+          STATUS=$(echo "$RESULT" | jq -r '.success')
+
+          # 设置输出
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          echo "detail=$RESULT" >> $GITHUB_OUTPUT
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "executed_at=$EXECUTED_AT" >> $GITHUB_OUTPUT
+
+          echo "✅ 结果生成完成"
+          echo "$SUMMARY"
+
+      - name: Package extraction results
+        run: |
+          python scripts/package_results.py \
+            --source-dir /tmp/extraction_temp \
+            --output-dir /tmp/extraction_output
+
+      - name: Upload extraction results as artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: extraction-results-${{ github.run_id }}
+          path: /tmp/extraction_output/
+          retention-days: 7
+
+      - name: Send DingTalk notification
+        if: success()
+        env:
+          WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK }}
+          SECRET: ${{ secrets.DINGTALK_SECRET }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "未配置钉钉Webhook，跳过通知"
+            exit 0
+          fi
+
+          python scripts/send_dingtalk_notification.py \
+            --webhook "$WEBHOOK_URL" \
+            --secret "$SECRET" \
+            --summary "${{ steps.generate-output.outputs.summary }}"
+
+      - name: Clean up temporary files
+        if: always()
+        run: |
+          python scripts/cleanup_temp_files.py \
+            --temp-dir /tmp/extraction_temp
+          echo "✅ 临时文件已清空"
+
+      - name: Handle failure
+        if: failure()
+        run: |
+          echo "❌ 提取失败，请检查日志"
+
+      - name: Upload logs (if failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extraction-logs-${{ github.run_id }}
+          path: |
+            /tmp/extraction_log.txt
+          retention-days: 3

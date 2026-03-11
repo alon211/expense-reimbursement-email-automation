@@ -1,5 +1,5 @@
 {
-  "parse_time_range_days":60,
+  "parse_time_range_days":1,
   "rules": [
     {
       "rule_id": "rule_001",
@@ -56,7 +56,7 @@
         "extract_nuonuo_invoice": true,
         "nuonuo_anchor_text": "点击链接查看发票：",
         "nuonuo_download_options": {
-          "timeout": 30,
+          "timeout": 10,
           "verify_ssl": true
         }
       },
