@@ -15,7 +15,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # 导入配置模块
 from config.settings import (
-    CHECK_INTERVAL, TIME_ZONE, LOG_LEVEL, EXTRACT_ROOT_DIR, CLEAR_DB_ON_STARTUP
+    CHECK_INTERVAL, TIME_ZONE, LOG_LEVEL, EXTRACT_ROOT_DIR, CLEAR_DB_ON_STARTUP, RUN_ONCE
 )
 from config.logger_config import init_logger
 from core.email_fetcher import fetch_reimbursement_mails, send_mail_summary_notification
@@ -77,6 +77,12 @@ def main():
         rule_loader = None
 
     logger.info("===============================\n")
+
+    # 显示运行模式
+    if RUN_ONCE:
+        logger.info("【系统日志】运行模式：单次执行（RUN_ONCE=True）")
+    else:
+        logger.info(f"【系统日志】运行模式：循环运行（RUN_ONCE=False），检查间隔：{CHECK_INTERVAL}秒")
 
     # 验证日志文件写入正常
     if check_file_exists(log_file):
@@ -172,6 +178,11 @@ def main():
             logger.error(f"【错误日志】主循环异常：{str(e)}")
             import traceback
             logger.error(f"【错误日志】异常堆栈：{traceback.format_exc()}")
+
+        # 根据配置决定是否继续循环
+        if RUN_ONCE:
+            logger.info("【系统日志】配置为单次运行模式（RUN_ONCE=True），程序执行完毕")
+            break  # 退出循环
 
         logger.info(f"等待{CHECK_INTERVAL}秒后进行下一次检查...")
         time.sleep(CHECK_INTERVAL)

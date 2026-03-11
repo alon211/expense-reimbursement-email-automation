@@ -64,6 +64,8 @@ MAIL_SEARCH_CRITERIA = os.getenv("MAIL_SEARCH_CRITERIA", "UNSEEN").strip() or "U
 # 定时配置
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))
 TIME_ZONE = os.getenv("TIME_ZONE", "Asia/Shanghai").strip() or "Asia/Shanghai"
+# 是否只执行一次（True=执行一次后退出，False=循环运行）
+RUN_ONCE = os.getenv("RUN_ONCE", "False").lower() == "true"
 
 # 日志配置
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper() or "INFO"
