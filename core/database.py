@@ -257,7 +257,7 @@ class DatabaseManager:
     def get_existing_mail_dates(self) -> set:
         """
         获取所有已提取且文件存在的邮件发送时间集合
-        自动清理文件不存在的记录（将文件路径设为空）
+        自动删除文件不存在的记录（允许重新提取）
 
         Returns:
             set: 邮件发送时间的集合（用于快速去重检查）
@@ -274,7 +274,7 @@ class DatabaseManager:
             """)
 
             existing_dates = set()
-            records_to_clear = []  # 需要清理的记录（文件不存在）
+            records_to_delete = []  # 需要删除的记录（文件不存在）
 
             for row in cursor.fetchall():
                 # 验证文件是否真实存在
@@ -282,31 +282,38 @@ class DatabaseManager:
                 body_file_path = row['body_file_path']
                 record_id = row['id']
                 message_id = row['message_id']
+                mail_date = row['mail_date']
 
                 storage_exists = storage_path and Path(storage_path).exists()
                 body_exists = body_file_path and Path(body_file_path).exists()
 
                 if storage_exists or body_exists:
                     # 文件存在，添加到已提取集合
-                    existing_dates.add(row['mail_date'])
+                    existing_dates.add(mail_date)
                 else:
-                    # 文件不存在，记录需要清理
-                    records_to_clear.append((record_id, message_id, storage_path, body_file_path))
+                    # 文件不存在，记录需要删除
+                    records_to_delete.append((record_id, message_id, mail_date, storage_path, body_file_path))
 
-            # 清理文件不存在的记录（将文件路径设为空，保留数据库记录）
-            if records_to_clear:
-                logger.warning(f"【数据库清理】发现 {len(records_to_clear)} 条记录的文件不存在，将清理文件路径")
-                for record_id, message_id, storage_path, body_file_path in records_to_clear:
+            # 删除文件不存在的记录（允许重新提取）
+            if records_to_delete:
+                logger.warning(f"【数据库清理】发现 {len(records_to_delete)} 条记录的文件不存在，将删除记录以允许重新提取")
+                for record_id, message_id, mail_date, storage_path, body_file_path in records_to_delete:
+                    # 先删除关联的提取历史记录（使用 message_id 关联）
                     cursor.execute("""
-                        UPDATE extracted_emails
-                        SET storage_path = '', body_file_path = '', attachment_count = 0
+                        DELETE FROM extraction_history
+                        WHERE message_id = ?
+                    """, (message_id,))
+
+                    # 再删除主记录
+                    cursor.execute("""
+                        DELETE FROM extracted_emails
                         WHERE id = ?
                     """, (record_id,))
-                    logger.info(f"【数据库清理】已清理记录 ID={record_id}, message_id={message_id} 的文件路径（原路径：storage={storage_path}, body={body_file_path}）")
+                    logger.info(f"【数据库清理】已删除记录 ID={record_id}, message_id={message_id}, mail_date={mail_date}（原路径：storage={storage_path}, body={body_file_path}）")
 
             logger.info(f"【数据库预检查】找到 {len(existing_dates)} 个已提取且文件存在的邮件")
-            if records_to_clear:
-                logger.info(f"【数据库清理】已清理 {len(records_to_clear)} 条文件不存在的记录")
+            if records_to_delete:
+                logger.info(f"【数据库清理】已删除 {len(records_to_delete)} 条文件不存在的记录，允许重新提取")
             return existing_dates
 
     def get_all_extracted_emails(self, limit: int = 100, offset: int = 0) -> List[ExtractedEmail]:
@@ -447,6 +454,63 @@ class DatabaseManager:
             if deleted:
                 logger.info(f"已删除邮件记录：{message_id}")
             return deleted
+
+    def clean_invalid_records(self) -> int:
+        """
+        清理所有文件不存在的记录（允许重新提取）
+        这是一个手动清理方法，可以强制删除所有无效记录
+
+        Returns:
+            int: 删除的记录数
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+
+            # 查询所有记录
+            cursor.execute("""
+                SELECT id, message_id, mail_date, storage_path, body_file_path
+                FROM extracted_emails
+            """)
+
+            records_to_delete = []
+            for row in cursor.fetchall():
+                record_id = row['id']
+                message_id = row['message_id']
+                mail_date = row['mail_date']
+                storage_path = row['storage_path']
+                body_file_path = row['body_file_path']
+
+                # 检查文件是否存在
+                storage_exists = storage_path and Path(storage_path).exists()
+                body_exists = body_file_path and Path(body_file_path).exists()
+
+                # 如果两个路径都为空或者文件不存在，则删除记录
+                if not storage_exists and not body_exists:
+                    records_to_delete.append((record_id, message_id, mail_date))
+
+            # 删除无效记录
+            deleted_count = 0
+            for record_id, message_id, mail_date in records_to_delete:
+                # 先删除关联的提取历史记录（使用 message_id 关联）
+                cursor.execute("""
+                    DELETE FROM extraction_history
+                    WHERE message_id = ?
+                """, (message_id,))
+
+                # 再删除主记录
+                cursor.execute("""
+                    DELETE FROM extracted_emails
+                    WHERE id = ?
+                """, (record_id,))
+                deleted_count += 1
+                logger.info(f"【手动清理】已删除无效记录 ID={record_id}, message_id={message_id}, mail_date={mail_date}")
+
+            if deleted_count > 0:
+                logger.info(f"【手动清理】总共删除了 {deleted_count} 条无效记录")
+            else:
+                logger.info(f"【手动清理】没有发现无效记录")
+
+            return deleted_count
 
     def clear_old_records(self, days: int = 30) -> int:
         """

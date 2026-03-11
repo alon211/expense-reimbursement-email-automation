@@ -1,5 +1,5 @@
 ## 强制约束
-用户对话里含有该功能ok的意思，就需要自动git commit下
+自动git commit，需要用户确认后才可以
 
 ---
 
@@ -151,6 +151,14 @@
   - PDF 在线预览
   - 图片预览
   - Office 文档预览
+
+- ✅ **压缩文件附件自动解压**（已实现）
+  - 检测附件是否为压缩文件（zip、rar、7z、tar.gz 等）
+  - 根据规则配置决定是否解压
+  - 支持密码保护的压缩包
+  - 解压后使用嵌套目录结构（如 invoice.zip/ 目录）
+  - 解压后保留原压缩包
+  - 支持的格式：zip、rar、7z、tar.gz、tar.bz2
 
 - ❌ **定时任务优化**
   - Cron 表达式支持
@@ -378,18 +386,19 @@ CREATE TABLE extraction_history (
 
 **核心方法**：
 
-| 方法 | 功能 | 调用者 |
-|------|------|--------|
-| `_init_database()` | 创建表结构和索引 | `__init__()` |
-| `is_email_extracted(message_id)` | 检查邮件是否已提取（基础） | - |
-| `is_email_extracted_with_files(message_id)` | 增强版去重检查（验证文件存在） | - |
-| `add_extracted_email(email_record)` | 添加新邮件记录 | `main.py` |
-| `update_extracted_email(email_record)` | 更新已存在的邮件记录 | `main.py` |
-| `get_extracted_email(message_id)` | 根据Message-ID获取记录 | - |
-| **`get_existing_mail_dates()`** | **获取已提取且文件存在的邮件发送时间集合** | `fetch_reimbursement_mails()` |
-| `add_extraction_history(history)` | 添加提取历史 | `main.py` |
-| `get_statistics()` | 获取统计信息 | - |
-| `clear_all_data()` | 清空所有数据 | `main.py` |
+| 方法 | 功能 | 调用者 | 关联逻辑 |
+|------|------|--------|---------|
+| `_init_database()` | 创建表结构和索引 | `__init__()` | - |
+| `is_email_extracted(message_id)` | 检查邮件是否已提取（基础） | - | - |
+| `is_email_extracted_with_files(message_id)` | 增强版去重检查（验证文件存在） | - | - |
+| `add_extracted_email(email_record)` | 添加新邮件记录 | `main.py` | - |
+| `update_extracted_email(email_record)` | 更新已存在的邮件记录 | `main.py` | - |
+| `get_extracted_email(message_id)` | 根据Message-ID获取记录 | - | - |
+| **`get_existing_mail_dates()`** | **获取已提取且文件存在的邮件发送时间集合，自动清理文件不存在的记录** | `fetch_reimbursement_mails()` | 先通过 `message_id` 删除 extraction_history 记录，再删除 extracted_emails 记录 |
+| `clean_invalid_records()` | **手动清理**所有文件不存在的记录 | `clean_invalid_records.py` | 先通过 `message_id` 删除 extraction_history 记录，再删除 extracted_emails 记录 |
+| `add_extraction_history(history)` | 添加提取历史 | `main.py` | - |
+| `get_statistics()` | 获取统计信息 | - | - |
+| `clear_all_data()` | 清空所有数据 | `main.py` | - |
 
 **去重机制（智能预检查）**：
 ```python
