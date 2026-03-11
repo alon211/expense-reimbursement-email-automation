@@ -30,6 +30,7 @@ env:
   DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
   DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
   EXTRACT_ROOT_DIR: /tmp/extraction_temp
+  MAIL_SEARCH_CRITERIA: ALL
 
 jobs:
   extract-emails:
