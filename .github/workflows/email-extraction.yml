@@ -22,15 +22,24 @@ on:
   repository_dispatch:
     types: [trigger-extraction]
 
-# 配置环境变量（从GitHub Secrets）
+# 配置环境变量（从GitHub Secrets 或硬编码）
 env:
-  IMAP_HOST: ${{ secrets.IMAP_HOST }}
-  IMAP_USER: ${{ secrets.IMAP_USER }}
+  IMAP_HOST: ${{ secrets.IMAP_HOST || 'imap.qq.com' }}
+  IMAP_USER: ${{ secrets.IMAP_USER || '306068447@qq.com' }}
   IMAP_PASS: ${{ secrets.IMAP_PASS }}
+  MAIL_CHECK_FOLDER: INBOX
+  MAIL_SEARCH_CRITERIA: ALL
+  CHECK_INTERVAL: 60
+  TIME_ZONE: Asia/Shanghai
+  LOG_LEVEL: DEBUG
+  LOG_MAX_SIZE: 10485760
+  LOG_BACKUP_COUNT: 5
   DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
   DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+  PUSH_SWITCH: True
+  PARSE_RULES_JSON_PATH: ./rules/parse_rules.json
   EXTRACT_ROOT_DIR: /tmp/extraction_temp
-  MAIL_SEARCH_CRITERIA: ALL
+  CLEAR_DB_ON_STARTUP: False
 
 jobs:
   extract-emails:
