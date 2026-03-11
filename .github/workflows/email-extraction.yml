@@ -45,8 +45,8 @@ jobs:
 
     # 定义输出（供API返回）
     outputs:
-      summary: ${{ steps.generate-output.outputs.summary }}
-      detail: ${{ steps.generate-output.outputs.detail }}
+      summary_file: ${{ steps.generate-output.outputs.summary_file }}
+      detail_file: ${{ steps.generate-output.outputs.detail_file }}
       status: ${{ steps.generate-output.outputs.status }}
       executed_at: ${{ steps.generate-output.outputs.executed_at }}
 
@@ -116,6 +116,9 @@ jobs:
             exit 1
           fi
 
+          # ✅ 修复：保存完整结果到文件
+          echo "$RESULT" > /tmp/extraction_result.json
+
           # 生成摘要
           SUMMARY=$(echo "$RESULT" | jq '{
             success,
@@ -124,18 +127,23 @@ jobs:
             time_range_days
           }')
 
+          # ✅ 修复：保存摘要到文件
+          echo "$SUMMARY" > /tmp/extraction_summary.json
+
           # 获取执行时间
           EXECUTED_AT=$(echo "$RESULT" | jq -r '.executed_at')
           STATUS=$(echo "$RESULT" | jq -r '.success')
 
-          # 设置输出
-          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
-          echo "detail=$RESULT" >> $GITHUB_OUTPUT
+          # ✅ 修复：使用文件路径而非直接输出 JSON（避免格式错误）
+          echo "summary_file=/tmp/extraction_summary.json" >> $GITHUB_OUTPUT
+          echo "detail_file=/tmp/extraction_result.json" >> $GITHUB_OUTPUT
           echo "status=$STATUS" >> $GITHUB_OUTPUT
           echo "executed_at=$EXECUTED_AT" >> $GITHUB_OUTPUT
 
           echo "✅ 结果生成完成"
-          echo "$SUMMARY"
+          echo "摘要文件: /tmp/extraction_summary.json"
+          echo "详情文件: /tmp/extraction_result.json"
+          cat /tmp/extraction_summary.json
 
       - name: Package extraction results
         run: |
