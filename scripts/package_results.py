@@ -8,8 +8,23 @@ import sys
 import argparse
 import shutil
 import json
+import re
 from pathlib import Path
 from datetime import datetime
+
+
+def _is_timestamp_dir(dir_name: str) -> bool:
+    """
+    检查目录名是否符合时间戳格式（YYYY-MM-DD_HHMMSS）
+
+    Args:
+        dir_name: 目录名
+
+    Returns:
+        bool: 是否是时间戳目录
+    """
+    pattern = r'^\d{4}-\d{2}-\d{2}_\d{6}$'
+    return bool(re.match(pattern, dir_name))
 
 
 def package_results(source_dir: Path, output_base_dir: Path) -> Path:
@@ -36,10 +51,23 @@ def package_results(source_dir: Path, output_base_dir: Path) -> Path:
         # 创建空的输出目录
         return output_dir
 
-    # 复制文件
+    # ✅ 修复：自动查找时间戳子目录
+    # 检查是否包含时间戳子目录（格式：YYYY-MM-DD_HHMMSS）
+    timestamp_dirs = sorted(
+        [d for d in source_dir.iterdir() if d.is_dir() and _is_timestamp_dir(d.name)],
+        reverse=True
+    )
+
+    actual_source_dir = source_dir
+    if timestamp_dirs:
+        # 使用最新的时间戳目录
+        actual_source_dir = timestamp_dirs[0]
+        print(f"🔍 发现时间戳子目录，使用：{actual_source_dir.name}")
+
+    # 复制文件（使用实际的源目录）
     copied_count = 0
     for category in ["bodies", "attachments", "extracted", "nuonuo_invoices"]:
-        src = source_dir / category
+        src = actual_source_dir / category
         if src.exists():
             dst = output_dir / category
             try:
