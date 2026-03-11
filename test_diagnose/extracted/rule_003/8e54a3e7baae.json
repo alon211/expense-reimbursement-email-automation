@@ -1,0 +1,11 @@
+{
+  "message_id": "<280bace957d7@example.com>",
+  "subject": "您收到一张【苏州恒泰酒店管理有限公司】开具的发票",
+  "sender": "诺诺网",
+  "date": "2026-03-11 16:16:40",
+  "body": "",
+  "matched_rules": [
+    "rule_003"
+  ],
+  "extracted_at": "2026-03-11T19:30:42.734239"
+}
