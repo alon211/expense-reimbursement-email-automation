@@ -53,6 +53,45 @@ class EmailExtractor:
         logger.info(f"【提取器】创建提取目录：{extraction_dir}")
         return extraction_dir
 
+    def _get_unique_filename(self, directory: Path, filename: str) -> Path:
+        """
+        生成唯一的文件名（避免冲突）
+
+        策略：序号递增
+        - invoice.pdf → invoice_1.pdf → invoice_2.pdf
+
+        Args:
+            directory: 目标目录
+            filename: 原始文件名
+
+        Returns:
+            Path: 唯一的文件路径
+        """
+        filepath = directory / filename
+
+        # 如果文件不存在，直接返回原路径
+        if not filepath.exists():
+            return filepath
+
+        # 文件已存在，添加序号
+        name = filepath.stem  # 文件名不含扩展名
+        ext = filepath.suffix  # 扩展名（含点）
+
+        counter = 1
+        while True:
+            new_filename = f"{name}_{counter}{ext}"
+            new_filepath = directory / new_filename
+
+            if not new_filepath.exists():
+                logger.info(f"【提取器】文件重命名：{filename} → {new_filename}")
+                return new_filepath
+
+            counter += 1
+
+            # 防止无限循环（最多尝试1000次）
+            if counter > 1000:
+                raise Exception(f"无法生成唯一文件名：{filename}")
+
     def save_email_body(self, msg: email.message.Message, rule_id: str, extraction_dir: Path, message_id: str) -> str:
         """
         保存邮件正文HTML
@@ -123,8 +162,9 @@ class EmailExtractor:
                 filename = self._decode_filename(filename)
                 logger.debug(f"【提取器】发现附件：{filename}")
 
-                # 保存附件
-                filepath = rule_dir / filename
+                # 使用重命名逻辑避免文件冲突
+                filepath = self._get_unique_filename(rule_dir, filename)
+
                 try:
                     with open(filepath, 'wb') as f:
                         f.write(part.get_payload(decode=True))
