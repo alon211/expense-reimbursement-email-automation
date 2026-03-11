@@ -77,6 +77,18 @@ class Rule:
         """是否提取邮件头"""
         return self.extract_options.get("extract_headers", False)
 
+    def should_extract_archives(self) -> bool:
+        """是否解压压缩文件"""
+        return self.extract_options.get("extract_archives", False)
+
+    def get_archive_password(self) -> str:
+        """获取压缩包密码"""
+        return self.extract_options.get("archive_password", "")
+
+    def get_allowed_archive_types(self) -> List[str]:
+        """获取允许的压缩格式列表"""
+        return self.extract_options.get("allowed_archive_types", [])
+
 
 class RuleLoader:
     """规则加载器"""

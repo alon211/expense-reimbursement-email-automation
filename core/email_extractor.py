@@ -142,6 +142,103 @@ class EmailExtractor:
 
         return attachment_count, attachments
 
+    def process_archived_attachments(self, attachment_paths: List[str], rule: object, extraction_dir: Path) -> dict:
+        """
+        处理压缩文件附件，自动解压
+
+        Args:
+            attachment_paths: 附件文件路径列表
+            rule: 规则对象
+            extraction_dir: 提取目录
+
+        Returns:
+            dict: {
+                'archive_count': 压缩包数量,
+                'extracted_count': 解压的文件数量,
+                'extracted_paths': 解压后的文件路径列表
+            }
+        """
+        logger.info(f"【提取器】process_archived_attachments() 方法被调用，附件数量：{len(attachment_paths)}")
+        logger.info(f"【提取器】规则配置：should_extract_archives={rule.should_extract_archives()}")
+
+        from utils.archive_utils import ArchiveExtractor
+
+        # 检查规则是否允许解压
+        if not rule.should_extract_archives():
+            logger.info("【提取器】规则配置为不解压压缩文件，跳过处理")
+            logger.debug("【提取器】规则配置不解压压缩文件，跳过")
+            return {
+                'archive_count': 0,
+                'extracted_count': 0,
+                'extracted_paths': []
+            }
+
+        # 获取解压配置
+        password = rule.get_archive_password()
+        allowed_types = rule.get_allowed_archive_types()
+
+        # 如果没有指定允许的格式，使用默认支持的格式
+        if not allowed_types:
+            allowed_types = ['.zip', '.rar', '.7z', '.tar.gz', '.tar.bz2', '.tgz', '.tbz2', '.tar']
+
+        logger.info(f"【提取器】开始检查压缩文件附件（允许格式：{', '.join(allowed_types)}）")
+
+        archive_extractor = ArchiveExtractor()
+        archive_count = 0
+        extracted_count = 0
+        extracted_paths = []
+
+        # 遍历附件，查找压缩文件
+        for attachment_path in attachment_paths:
+            attachment_file = Path(attachment_path)
+
+            # 检查是否为压缩文件
+            if not archive_extractor.is_archive_file(attachment_file, allowed_types):
+                logger.debug(f"【提取器】跳过非压缩文件：{attachment_file.name}")
+                continue
+
+            # 获取压缩文件类型
+            archive_type = archive_extractor.get_archive_type(attachment_file)
+            if not archive_type:
+                logger.warning(f"【提取器】无法识别压缩文件类型：{attachment_file.name}")
+                continue
+
+            logger.info(f"【提取器】发现压缩文件：{attachment_file.name} (类型: {archive_type})")
+            archive_count += 1
+
+            # 解压文件
+            try:
+                result = archive_extractor.extract_archive(
+                    archive_path=attachment_file,
+                    extract_dir=attachment_file.parent,  # 解压到附件所在目录
+                    password=password if password else None,
+                    allowed_types=allowed_types
+                )
+
+                extracted_count += result['extracted_count']
+                extracted_paths.extend(result['extracted_paths'])
+
+                logger.info(f"【提取器】✅ 解压成功：{attachment_file.name}")
+                logger.info(f"【提取器】   解压文件数：{result['extracted_count']}")
+                logger.info(f"【提取器】   解压目录：{result['extract_dir']}")
+
+            except Exception as e:
+                logger.error(f"【提取器】❌ 解压失败：{attachment_file.name}，错误：{e}")
+
+        # 输出汇总日志
+        if archive_count > 0:
+            logger.info(f"【提取器】压缩文件处理完成：")
+            logger.info(f"【提取器】   发现压缩包：{archive_count} 个")
+            logger.info(f"【提取器】   解压文件：{extracted_count} 个")
+        else:
+            logger.debug("【提取器】未发现压缩文件附件")
+
+        return {
+            'archive_count': archive_count,
+            'extracted_count': extracted_count,
+            'extracted_paths': extracted_paths
+        }
+
     def save_extracted_content(self, mail_data: dict, rule_id: str, extraction_dir: Path, message_id: str) -> str:
         """
         保存提取的结构化内容（JSON格式）
@@ -277,6 +374,12 @@ def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_d
             - attachment_paths: 附件文件路径列表
             - extracted_content_path: 提取内容文件路径
     """
+    # 调试信息：确认函数被调用
+    print("=" * 60, flush=True)
+    print("【DEBUG-PRIORITY-1】extract_email_full 函数被调用", flush=True)
+    print(f"【DEBUG-PRIORITY-1】邮件主题：{mail_data.get('subject', '')}", flush=True)
+    print("=" * 60, flush=True)
+
     extractor = EmailExtractor()
     message_id = mail_data.get('message_id', '')
     primary_rule = mail_data.get('matched_rules', [None])[0]
@@ -320,6 +423,19 @@ def extract_email_full(msg: email.message.Message, mail_data: dict, extraction_d
     if primary_rule.should_extract_attachments():
         logger.info("【提取器】根据规则配置，提取附件")
         attachment_count, attachment_paths = extractor.extract_attachments(msg, primary_rule_id, extraction_dir, message_id)
+
+        # 2.5 处理压缩文件附件（如果规则允许）
+        if attachment_count > 0:
+            logger.info(f"【提取器】准备检查 {attachment_count} 个附件中是否有压缩文件")
+            archive_result = extractor.process_archived_attachments(attachment_paths, primary_rule, extraction_dir)
+
+            # 更新统计信息
+            attachment_count += archive_result['extracted_count']
+            attachment_paths.extend(archive_result['extracted_paths'])
+
+            # 如果有压缩文件被解压，记录额外信息
+            if archive_result['archive_count'] > 0:
+                logger.info(f"【提取器】压缩文件处理：发现 {archive_result['archive_count']} 个压缩包，解压 {archive_result['extracted_count']} 个文件")
     else:
         logger.info("【提取器】规则配置不提取附件，跳过")
 

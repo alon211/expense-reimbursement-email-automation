@@ -1,0 +1,48 @@
+# Python虚拟环境
+venv/
+env/
+.venv/
+
+# Python编译文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Git相关
+.git/
+.gitignore
+
+# IDE配置
+.vscode/
+.idea/
+
+# 日志文件（挂载卷）
+logs/
+*.log
+
+# 提取文件（挂载卷）
+extracted_mails/
+
+# 环境变量文件
+.env
+
+# 文档文件
+*.md
+plan/
+architecture/
+docs/
+
+# 测试文件
+test_*.py
+*_test.py
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db

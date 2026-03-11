@@ -1,3 +1,24 @@
+## 文档导航
+
+### 📋 计划文档
+- **[功能完成状态](plan/feature-status.md)** - 查看项目各功能的开发状态（已完成/未完成）
+- **[开发路线图](plan/development-roadmap.md)** - 查看项目未来开发方向和优先级
+- **[测试覆盖状态](plan/testing-status.md)** - 查看测试覆盖情况和待测试项
+
+### 🏗️ 架构文档
+- **[系统架构总览](architecture/system-overview.md)** - 了解项目整体架构和核心特性
+- **[模块参考手册](architecture/module-reference.md)** - 查看各模块的详细说明和使用方法
+- **[数据流图](architecture/data-flow.md)** - 了解数据在系统中的流动路径
+- **[API 接口文档](architecture/api-reference.md)** - 查看公共 API 的详细说明
+- **[部署架构](architecture/deployment.md)** - 查看本地部署和 Docker 部署指南
+
+### 📁 专题文档
+- **数据库相关**: [architecture/database/](architecture/database/) - 数据库使用、集成、配置等文档
+- **实现记录**: [plan/implementation/](plan/implementation/) - 功能实现和验证记录
+- **配置相关**: [architecture/config/](architecture/config/) - 敏感信息存储等配置文档
+
+---
+
 ## 强制约束
 自动git commit，需要用户确认后才可以
 

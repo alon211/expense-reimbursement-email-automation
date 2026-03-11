@@ -31,7 +31,10 @@
       "extract_options": {
         "extract_attachments": true,
         "extract_body": false,
-        "extract_headers": false
+        "extract_headers": false,
+        "extract_archives": true,
+        "archive_password": "",
+        "allowed_archive_types": [".zip", ".rar", ".7z", ".tar.gz", ".tar.bz2"]
       },
       "output_subdir": "12306"
     },
