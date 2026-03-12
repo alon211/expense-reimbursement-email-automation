@@ -1,15 +1,27 @@
 {
-  "parse_time_range_days":7,
+  "parse_time_range_days": 7,
   "rules": [
     {
       "rule_id": "rule_001",
       "rule_name": "报销邮件提取",
-      "enabled": true,
+      "enabled": false,
       "description": "提取包含报销、费用、发票关键词的邮件",
       "match_conditions": {
-        "sender_contains": ["finance", "报销", "财务"],
-        "subject_contains": ["报销", "费用", "发票"],
-        "body_contains": ["发票", "报销单", "费用清单"]
+        "sender_contains": [
+          "finance",
+          "报销",
+          "财务"
+        ],
+        "subject_contains": [
+          "报销",
+          "费用",
+          "发票"
+        ],
+        "body_contains": [
+          "发票",
+          "报销单",
+          "费用清单"
+        ]
       },
       "extract_options": {
         "extract_attachments": true,
@@ -24,8 +36,14 @@
       "enabled": true,
       "description": "提取指定地址邮件",
       "match_conditions": {
-        "sender_contains": ["12306","didifapiao","reservation"],
-        "subject_contains": ["高德打车电子发票"],
+        "sender_contains": [
+          "12306",
+          "didifapiao",
+          "reservation"
+        ],
+        "subject_contains": [
+          "高德打车电子发票"
+        ],
         "body_contains": []
       },
       "extract_options": {
@@ -34,7 +52,13 @@
         "extract_headers": false,
         "extract_archives": true,
         "archive_password": "",
-        "allowed_archive_types": [".zip", ".rar", ".7z", ".tar.gz", ".tar.bz2"]
+        "allowed_archive_types": [
+          ".zip",
+          ".rar",
+          ".7z",
+          ".tar.gz",
+          ".tar.bz2"
+        ]
       },
       "output_subdir": "12306"
     },
@@ -44,8 +68,12 @@
       "enabled": false,
       "description": "从诺诺网发票邮件中自动提取并下载PDF",
       "match_conditions": {
-        "sender_contains": ["诺诺网"],
-        "subject_contains": ["发票"],
+        "sender_contains": [
+          "诺诺网"
+        ],
+        "subject_contains": [
+          "发票"
+        ],
         "body_contains": []
       },
       "extract_options": {
@@ -62,5 +90,6 @@
       },
       "output_subdir": "invoices"
     }
-  ]
+  ],
+  "test_timestamp": "2026-03-13-test"
 }
