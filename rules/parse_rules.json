@@ -1,5 +1,5 @@
 {
-  "parse_time_range_days":3,
+  "parse_time_range_days":7,
   "rules": [
     {
       "rule_id": "rule_001",
