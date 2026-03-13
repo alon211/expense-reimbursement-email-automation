@@ -72,7 +72,7 @@
     {
       "rule_id": "rule_003",
       "rule_name": "诺诺网发票提取",
-      "enabled": false,
+      "enabled": true,
       "description": "从诺诺网发票邮件中自动提取并下载PDF",
       "match_conditions": {
         "sender_contains": [
