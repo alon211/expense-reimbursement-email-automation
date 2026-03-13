@@ -33,7 +33,7 @@
     {
       "rule_id": "rule_002",
       "rule_name": "12306提取",
-      "enabled": true,
+      "enabled": false,
       "description": "提取指定地址邮件",
       "match_conditions": {
         "sender_contains": [
