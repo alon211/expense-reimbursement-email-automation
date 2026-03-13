@@ -1,10 +1,10 @@
 {
-  "parse_time_range_days": 7,
+  "parse_time_range_days": 1,
   "rules": [
     {
       "rule_id": "rule_001",
       "rule_name": "报销邮件提取",
-      "enabled": true,
+      "enabled": false,
       "description": "提取包含报销、费用、发票关键词的邮件",
       "match_conditions": {
         "sender_contains": [
@@ -39,7 +39,8 @@
         "sender_contains": [
           "12306",
           "didifapiao",
-          "reservation"
+          "reservation",
+          "诺诺网"
         ],
         "subject_contains": [
           "高德打车电子发票"
@@ -52,6 +53,12 @@
         "extract_headers": false,
         "extract_archives": true,
         "archive_password": "",
+        "extract_nuonuo_invoice": true,
+        "nuonuo_anchor_text": "点击链接查看发票：",
+        "nuonuo_download_options": {
+          "timeout": 10,
+          "verify_ssl": true
+        },
         "allowed_archive_types": [
           ".zip",
           ".rar",
