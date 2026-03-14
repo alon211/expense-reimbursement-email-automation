@@ -77,15 +77,18 @@
       "description": "从诺诺网发票邮件中自动提取并下载PDF",
       "match_conditions": {
         "sender_contains": [
+           "12306",
+          "didifapiao",
+          "reservation",
           "诺诺网"
         ],
         "subject_contains": [
-          "发票"
+          "发票","高德打车电子发票"
         ],
         "body_contains": []
       },
       "extract_options": {
-        "extract_attachments": false,
+        "extract_attachments": true,
         "extract_body": true,
         "extract_headers": false,
         "extract_archives": false,
